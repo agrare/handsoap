@@ -147,8 +147,8 @@ module Handsoap
     def on_http_client_init(&block)
       @http_client_init_callback = block
     end
-    def fire_on_http_client_init(http_client)
-      @http_client_init_callback.call(http_client) if @http_client_init_callback
+    def fire_on_http_client_init(http_client, headers)
+      @http_client_init_callback.call(http_client, headers) if @http_client_init_callback
     end
     def self.on_create_document(&block)
       @@create_document_callback = block
@@ -261,7 +261,7 @@ module Handsoap
         if !@http_client
           require 'curb'
           @http_client = Curl::Easy.new(uri)
-          fire_on_http_client_init @http_client
+          fire_on_http_client_init @http_client, headers
         end
         @http_client.headers = headers
         @http_client.http_post body
@@ -274,7 +274,7 @@ module Handsoap
         if !@http_client
           require 'httpclient'
           @http_client = HTTPClient.new
-          fire_on_http_client_init @http_client
+          fire_on_http_client_init @http_client, headers
         end
         response = @http_client.post(uri, body, headers)
         debug do
