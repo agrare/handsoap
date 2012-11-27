@@ -254,11 +254,7 @@ module Handsoap
       headers["SOAPAction"] = action unless action.nil?
       body = doc.to_s
       debug do
-        fire_on_log_header "==============="
-        fire_on_log_header "--- Request: length=%d" % [body.length]
-        fire_on_log_header "URI: %s" % [uri]
-        fire_on_log_header headers.map { |key,value| key + ": " + value }.join("\n")
-        fire_on_log_header "---"
+        fire_on_log_header "HandSoap Request:  length: [#{body.length}], URI: [#{uri}], #{headers.map { |key,value| "#{key}: [#{value}]" }.join(", ")}"
         fire_on_log_body body
       end
       if Handsoap.http_driver == :curb
@@ -270,10 +266,7 @@ module Handsoap
         @http_client.headers = headers
         @http_client.http_post body
         debug do
-          fire_on_log_header "--- Response: length=%d" % [@http_client.body_str.length]
-          fire_on_log_header "HTTP Status: %s" % [@http_client.response_code]
-          fire_on_log_header "Content-Type: %s" % [@http_client.content_type]
-          fire_on_log_header "---"
+          fire_on_log_header "HandSoap Response: length: [#{@http_client.body_str.length}], HTTP-Status: [#{@http_client.response_code}], Content-Type: [#{@http_client.content_type}]"
           fire_on_log_body Handsoap.pretty_format_envelope(@http_client.body_str)
         end
         soap_response = Response.new(@http_client.body_str, envelope_namespace)
@@ -285,10 +278,7 @@ module Handsoap
         end
         response = @http_client.post(uri, body, headers)
         debug do
-          fire_on_log_header "--- Response: length=%d" % [response.content.length]
-          fire_on_log_header "HTTP Status: %s" % [response.status]
-          fire_on_log_header "Content-Type: %s" % [response.contenttype]
-          fire_on_log_header "---"
+          fire_on_log_header "HandSoap Response: length: [#{response.content.length}], HTTP-Status: [#{response.status}], Content-Type: [#{response.contenttype}]"
           fire_on_log_body Handsoap.pretty_format_envelope(response.content)
         end
         soap_response = Response.new(response.content, envelope_namespace)
