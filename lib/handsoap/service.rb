@@ -96,17 +96,15 @@ module Handsoap
   end
 
   class Service
-    @@logger = nil
+    @@log_header_callback = nil
+    @@log_body_callback = nil
+    attr_reader :http_client
     def initialize(ep)
-      @logger = @@logger
       @http_client = nil
+      @log_header_callback = @@log_header_callback
+      @log_body_callback = @@log_body_callback
+      @debug = @log_header_callback || @log_body_callback
       endpoint ep
-    end
-    def self.logger=(io)
-      @@logger = io
-    end
-    def logger=(io)
-      @logger = io
     end
     def endpoint(args = {})
       @protocol_version = args[:version] || raise("Missing option :version")
@@ -127,21 +125,37 @@ module Handsoap
       end
       @mapping.merge! mapping
     end
+    def self.on_log_header(&block)
+      @@log_header_callback = block
+    end
+    def on_log_header(&block)
+      @log_header_callback = block
+      @debug = true
+    end
+    def fire_on_log_header(msg)
+      @log_header_callback.call(msg) if @log_header_callback
+    end
+    def self.on_log_body(&block)
+      @@log_body_callback = block
+    end
+    def on_log_body(&block)
+      @log_body_callback = block
+      @debug = true
+    end
+    def fire_on_log_body(msg)
+      @log_body_callback.call(msg) if @log_body_callback
+    end
     def on_http_client_init(&block)
       @http_client_init_callback = block
     end
     def fire_on_http_client_init(http_client)
-      if @http_client_init_callback
-        @http_client_init_callback.call http_client
-      end
+      @http_client_init_callback.call(http_client) if @http_client_init_callback
     end
     def self.on_create_document(&block)
       @@create_document_callback = block
     end
     def self.fire_on_create_document(doc)
-      if @@create_document_callback
-        @@create_document_callback.call doc
-      end
+      @@create_document_callback.call(doc) if @@create_document_callback
     end
     def uri
       @uri
@@ -228,14 +242,7 @@ module Handsoap
       end
     end
     def debug(message = nil)
-      if @logger
-        if message
-          @logger.puts(message)
-        end
-        if block_given?
-          yield @logger
-        end
-      end
+      yield if @debug
     end
     def dispatch(doc, action)
       on_before_dispatch()
@@ -244,13 +251,13 @@ module Handsoap
       }
       headers["SOAPAction"] = action unless action.nil?
       body = doc.to_s
-      debug do |logger|
-        logger.puts "==============="
-        logger.puts "--- Request ---"
-        logger.puts "URI: %s" % [uri]
-        logger.puts headers.map { |key,value| key + ": " + value }.join("\n")
-        logger.puts "---"
-        logger.puts body
+      debug do
+        fire_on_log_header "==============="
+        fire_on_log_header "--- Request: length=%d" % [body.length]
+        fire_on_log_header "URI: %s" % [uri]
+        fire_on_log_header headers.map { |key,value| key + ": " + value }.join("\n")
+        fire_on_log_header "---"
+        fire_on_log_body body
       end
       if Handsoap.http_driver == :curb
         if !@http_client
@@ -259,12 +266,12 @@ module Handsoap
         end
         @http_client.headers = headers
         @http_client.http_post body
-        debug do |logger|
-          logger.puts "--- Response ---"
-          logger.puts "HTTP Status: %s" % [@http_client.response_code]
-          logger.puts "Content-Type: %s" % [@http_client.content_type]
-          logger.puts "---"
-          logger.puts Handsoap.pretty_format_envelope(@http_client.body_str)
+        debug do
+          fire_on_log_header "--- Response: length=%d" % [@http_client.body_str.length]
+          fire_on_log_header "HTTP Status: %s" % [@http_client.response_code]
+          fire_on_log_header "Content-Type: %s" % [@http_client.content_type]
+          fire_on_log_header "---"
+          fire_on_log_body Handsoap.pretty_format_envelope(@http_client.body_str)
         end
         soap_response = Response.new(@http_client.body_str, envelope_namespace)
       else
@@ -273,12 +280,12 @@ module Handsoap
           fire_on_http_client_init @http_client
         end
         response = @http_client.post(uri, body, headers)
-        debug do |logger|
-          logger.puts "--- Response ---"
-          logger.puts "HTTP Status: %s" % [response.status]
-          logger.puts "Content-Type: %s" % [response.contenttype]
-          logger.puts "---"
-          logger.puts Handsoap.pretty_format_envelope(response.content)
+        debug do
+          fire_on_log_header "--- Response: length=%d" % [response.content.length]
+          fire_on_log_header "HTTP Status: %s" % [response.status]
+          fire_on_log_header "Content-Type: %s" % [response.contenttype]
+          fire_on_log_header "---"
+          fire_on_log_body Handsoap.pretty_format_envelope(response.content)
         end
         soap_response = Response.new(response.content, envelope_namespace)
       end
