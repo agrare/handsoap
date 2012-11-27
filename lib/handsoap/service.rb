@@ -97,55 +97,60 @@ module Handsoap
 
   class Service
     @@logger = nil
+    def initialize(ep)
+      @logger = @@logger
+      @http_client = nil
+      endpoint ep
+    end
     def self.logger=(io)
       @@logger = io
     end
-    def self.endpoint(args = {})
+    def logger=(io)
+      @logger = io
+    end
+    def endpoint(args = {})
       @protocol_version = args[:version] || raise("Missing option :version")
       @uri = args[:uri] || raise("Missing option :uri")
     end
-    def self.envelope_namespace
+    def envelope_namespace
       if SOAP_NAMESPACE[@protocol_version].nil?
         raise "Unknown protocol version '#{@protocol_version.inspect}'"
       end
       SOAP_NAMESPACE[@protocol_version]
     end
-    def self.request_content_type
+    def request_content_type
       @protocol_version == 1 ? "text/xml" : "application/soap+xml"
     end
-    def self.map_method(mapping)
+    def map_method(mapping)
       if @mapping.nil?
         @mapping = {}
       end
       @mapping.merge! mapping
     end
+    def on_http_client_init(&block)
+      @http_client_init_callback = block
+    end
+    def fire_on_http_client_init(http_client)
+      if @http_client_init_callback
+        @http_client_init_callback.call http_client
+      end
+    end
     def self.on_create_document(&block)
-      @create_document_callback = block
+      @@create_document_callback = block
     end
     def self.fire_on_create_document(doc)
-      if @create_document_callback
-        @create_document_callback.call doc
+      if @@create_document_callback
+        @@create_document_callback.call doc
       end
     end
-    def self.uri
+    def uri
       @uri
     end
-    def self.get_mapping(name)
+    def get_mapping(name)
       @mapping[name] if @mapping
     end
-    @@instance = {}
-    def self.instance
-      @@instance[self.to_s] ||= self.new
-    end
-    def self.method_missing(method, *args)
-      if instance.respond_to?(method)
-        instance.__send__ method, *args
-      else
-        super
-      end
-    end
     def method_missing(method, *args)
-      action = self.class.get_mapping(method)
+      action = get_mapping(method)
       if action
         invoke(action, *args)
       else
@@ -223,44 +228,51 @@ module Handsoap
       end
     end
     def debug(message = nil)
-      if @@logger
+      if @logger
         if message
-          @@logger.puts(message)
+          @logger.puts(message)
         end
         if block_given?
-          yield @@logger
+          yield @logger
         end
       end
     end
     def dispatch(doc, action)
       on_before_dispatch()
       headers = {
-        "Content-Type" => "#{self.class.request_content_type};charset=UTF-8"
+        "Content-Type" => "#{request_content_type};charset=UTF-8"
       }
       headers["SOAPAction"] = action unless action.nil?
       body = doc.to_s
       debug do |logger|
         logger.puts "==============="
         logger.puts "--- Request ---"
-        logger.puts "URI: %s" % [self.class.uri]
+        logger.puts "URI: %s" % [uri]
         logger.puts headers.map { |key,value| key + ": " + value }.join("\n")
         logger.puts "---"
         logger.puts body
       end
       if Handsoap.http_driver == :curb
-        http_client = Curl::Easy.new(self.class.uri)
-        http_client.headers = headers
-        http_client.http_post body
+        if !@http_client
+          @http_client = Curl::Easy.new(uri)
+          fire_on_http_client_init @http_client
+        end
+        @http_client.headers = headers
+        @http_client.http_post body
         debug do |logger|
           logger.puts "--- Response ---"
-          logger.puts "HTTP Status: %s" % [http_client.response_code]
-          logger.puts "Content-Type: %s" % [http_client.content_type]
+          logger.puts "HTTP Status: %s" % [@http_client.response_code]
+          logger.puts "Content-Type: %s" % [@http_client.content_type]
           logger.puts "---"
-          logger.puts Handsoap.pretty_format_envelope(http_client.body_str)
+          logger.puts Handsoap.pretty_format_envelope(@http_client.body_str)
         end
-        soap_response = Response.new(http_client.body_str, self.class.envelope_namespace)
+        soap_response = Response.new(@http_client.body_str, envelope_namespace)
       else
-        response = HTTPClient.new.post(self.class.uri, body, headers)
+        if !@http_client
+          @http_client = HTTPClient.new
+          fire_on_http_client_init @http_client
+        end
+        response = @http_client.post(uri, body, headers)
         debug do |logger|
           logger.puts "--- Response ---"
           logger.puts "HTTP Status: %s" % [response.status]
@@ -268,7 +280,7 @@ module Handsoap
           logger.puts "---"
           logger.puts Handsoap.pretty_format_envelope(response.content)
         end
-        soap_response = Response.new(response.content, self.class.envelope_namespace)
+        soap_response = Response.new(response.content, envelope_namespace)
       end
       if soap_response.fault?
         return self.on_fault(soap_response.fault)
@@ -277,7 +289,7 @@ module Handsoap
     end
     def make_envelope
       doc = XmlMason::Document.new do |doc|
-        doc.alias 'env', self.class.envelope_namespace
+        doc.alias 'env', envelope_namespace
         doc.add "env:Envelope" do |env|
           env.add "*:Header"
           env.add "*:Body"
