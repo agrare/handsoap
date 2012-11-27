@@ -64,7 +64,7 @@ module Handsoap
     end
   end
 
-  class Fault < Exception
+  class Fault < RuntimeError
     attr_reader :code, :reason, :details
     def initialize(code, reason, details)
       @code = code
