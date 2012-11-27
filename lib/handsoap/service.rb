@@ -159,8 +159,16 @@ module Handsoap
 
   class Service
     @@logger = nil
+    def initialize(ep)
+      @logger = @@logger
+      @http_client = nil
+      endpoint ep
+    end
     def self.logger=(io)
       @@logger = io
+    end
+    def logger=(io)
+      @logger = io
     end
     # Sets the endpoint for the service.
     # Arguments:
@@ -170,7 +178,7 @@ module Handsoap
     #   :request_content_type => Content-Type of HTTP request.
     # You must supply either :version or both :envelope_namspace and :request_content_type.
     # :version is simply a shortcut for default values.
-    def self.endpoint(args = {})
+    def endpoint(args = {})
       @uri = args[:uri] || raise("Missing option :uri")
       if args[:version]
         soap_namespace = { 1 => 'http://schemas.xmlsoap.org/soap/envelope/', 2 => 'http://www.w3.org/2003/05/soap-envelope' }
@@ -184,34 +192,14 @@ module Handsoap
         raise("Missing option :envelope_namespace, :request_content_type or :version")
       end
     end
-    def self.envelope_namespace
+    def envelope_namespace
       @envelope_namespace
     end
-    def self.request_content_type
+    def request_content_type
       @request_content_type
     end
-    def self.uri
-      @uri
-    end
-    @@instance = {}
-    def self.instance
-      @@instance[self.to_s] ||= self.new
-    end
-    def self.method_missing(method, *args, &block)
-      if instance.respond_to?(method)
-        instance.__send__ method, *args, &block
-      else
-        super
-      end
-    end
-    def envelope_namespace
-      self.class.envelope_namespace
-    end
-    def request_content_type
-      self.class.request_content_type
-    end
     def uri
-      self.class.uri
+      @uri
     end
     def http_driver_instance
       Handsoap::Http.drivers[Handsoap.http_driver].new
@@ -366,11 +354,6 @@ module Handsoap
       end
     end
 
-    # Hook that is called when a new request document is created.
-    #
-    # You can override this to add namespaces and other elements that are common to all requests (Such as authentication).
-    def on_create_document(doc)
-    end
     # Hook that is called before the message is dispatched.
     #
     # You can override this to provide filtering and logging.
@@ -410,13 +393,13 @@ module Handsoap
       raise "The response is not a valid SOAP envelope"
     end
 
-    def debug(message = nil) #:nodoc:
-      if @@logger
+    def debug(message = nil)
+      if @logger
         if message
-          @@logger.puts(message)
+          @logger.puts(message)
         end
         if block_given?
-          yield @@logger
+          yield @logger
         end
       end
     end
@@ -475,14 +458,13 @@ module Handsoap
     # Creates a standard SOAP envelope and yields the +Body+ element.
     def make_envelope # :yields: Handsoap::XmlMason::Element
       doc = XmlMason::Document.new do |doc|
-        doc.alias 'env', self.envelope_namespace
+        doc.alias 'env', envelope_namespace
         doc.add "env:Envelope" do |env|
           env.add "*:Header"
           env.add "*:Body"
         end
       end
-      self.class.fire_on_create_document doc # deprecated .. use instance method
-      on_create_document(doc)
+      fire_on_create_document doc # deprecated .. use instance method
       if block_given?
         yield doc.find("Body"),doc.find("Header")
       end
@@ -527,17 +509,17 @@ module Handsoap
     # Registers a simple method mapping without any arguments and no parsing of response.
     #
     # This is deprecated
-    def self.map_method(mapping)
+    def map_method(mapping)
       if @mapping.nil?
         @mapping = {}
       end
       @mapping.merge! mapping
     end
-    def self.get_mapping(name)
+    def get_mapping(name)
       @mapping[name] if @mapping
     end
     def method_missing(method, *args, &block)
-      action = self.class.get_mapping(method)
+      action = get_mapping(method)
       if action
         invoke(action, *args, &block)
       else
@@ -547,10 +529,10 @@ module Handsoap
     # Registers a block to call when a request document is created.
     #
     # This is deprecated, in favour of #on_create_document
-    def self.on_create_document(&block)
+    def on_create_document(&block)
       @create_document_callback = block
     end
-    def self.fire_on_create_document(doc)
+    def fire_on_create_document(doc)
       if @create_document_callback
         @create_document_callback.call doc
       end
