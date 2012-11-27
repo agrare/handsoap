@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 require 'rubygems'
-require 'httpclient'
 require 'nokogiri'
-require 'curb'
 require 'time'
 require 'handsoap/xml_mason'
 
@@ -266,6 +264,7 @@ module Handsoap
       end
       if Handsoap.http_driver == :curb
         if !@http_client
+          require 'curb'
           @http_client = Curl::Easy.new(uri)
           fire_on_http_client_init @http_client
         end
@@ -281,6 +280,7 @@ module Handsoap
         soap_response = Response.new(@http_client.body_str, envelope_namespace)
       else
         if !@http_client
+          require 'httpclient'
           @http_client = HTTPClient.new
           fire_on_http_client_init @http_client
         end
