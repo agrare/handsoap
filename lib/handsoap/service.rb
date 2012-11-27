@@ -87,7 +87,7 @@ module Handsoap
       if reason == ""
         reason = node.xpath('./faultstring/text()', ns).to_s
       end
-      details = node.xpath('./detail/*', ns)
+      details = node.xpath('./detail/*', ns).to_s
       self.new(fault_code, reason, details)
     end
   end
