@@ -96,13 +96,15 @@ module Handsoap
   end
 
   class Service
+    @@create_document_callback = nil
     @@log_header_callback = nil
     @@log_body_callback = nil
     attr_reader :http_client
     def initialize(ep)
       @http_client = nil
-      @log_header_callback = @@log_header_callback
-      @log_body_callback = @@log_body_callback
+      @create_document_callback ||= @@create_document_callback
+      @log_header_callback ||= @@log_header_callback
+      @log_body_callback ||= @@log_body_callback
       @debug = @log_header_callback || @log_body_callback
       endpoint ep
     end
@@ -154,8 +156,11 @@ module Handsoap
     def self.on_create_document(&block)
       @@create_document_callback = block
     end
-    def self.fire_on_create_document(doc)
-      @@create_document_callback.call(doc) if @@create_document_callback
+    def on_create_document(&block)
+      @create_document_callback = block
+    end
+    def fire_on_create_document(doc)
+      @create_document_callback.call(doc) if @create_document_callback
     end
     def uri
       @uri
@@ -302,7 +307,7 @@ module Handsoap
           env.add "*:Body"
         end
       end
-      self.class.fire_on_create_document doc
+      fire_on_create_document doc
       if block_given?
         yield doc.find("Body")
       end
