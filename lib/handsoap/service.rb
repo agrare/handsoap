@@ -255,7 +255,7 @@ module Handsoap
       body = doc.to_s
       dispatch_id = body.object_id
       debug do
-        fire_on_log_header "HandSoap Request  [#{dispatch_id}]:  length: [#{body.length}], URI: [#{uri}], #{headers.map { |key,value| "#{key}: [#{value}]" }.join(", ")}"
+        fire_on_log_header "HandSoap Request  [#{dispatch_id}]: length: [#{body.length}], URI: [#{uri}], #{headers.map { |key,value| "#{key}: [#{value}]" }.join(", ")}"
         fire_on_log_body body
       end
       if Handsoap.http_driver == :curb
