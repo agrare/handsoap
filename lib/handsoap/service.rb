@@ -102,7 +102,6 @@ module Handsoap
       @create_document_callback ||= @@create_document_callback
       @log_header_callback ||= @@log_header_callback
       @log_body_callback ||= @@log_body_callback
-      @debug = @log_header_callback || @log_body_callback
       endpoint ep
     end
     def endpoint(args = {})
@@ -129,20 +128,18 @@ module Handsoap
     end
     def on_log_header(&block)
       @log_header_callback = block
-      @debug = true
     end
-    def fire_on_log_header(msg)
-      @log_header_callback.call(msg) if @log_header_callback
+    def fire_on_log_header
+      @log_header_callback.call(yield) if @log_header_callback
     end
     def self.on_log_body(&block)
       @@log_body_callback = block
     end
     def on_log_body(&block)
       @log_body_callback = block
-      @debug = true
     end
-    def fire_on_log_body(msg)
-      @log_body_callback.call(msg) if @log_body_callback
+    def fire_on_log_body
+      @log_body_callback.call(yield) if @log_body_callback
     end
     def on_http_client_init(&block)
       @http_client_init_callback = block
@@ -243,9 +240,7 @@ module Handsoap
         nil
       end
     end
-    def debug(message = nil)
-      yield if @debug
-    end
+
     def dispatch(doc, action)
       on_before_dispatch()
       headers = {
@@ -254,10 +249,10 @@ module Handsoap
       headers["SOAPAction"] = action unless action.nil?
       body = doc.to_s
       dispatch_id = body.object_id
-      debug do
-        fire_on_log_header "HandSoap Request  [#{dispatch_id}]: length: [#{body.length}], URI: [#{uri}], #{headers.map { |key,value| "#{key}: [#{value}]" }.join(", ")}"
-        fire_on_log_body body
-      end
+
+      fire_on_log_header { "HandSoap Request  [#{dispatch_id}]: length: [#{body.length}], URI: [#{uri}], #{headers.map { |key,value| "#{key}: [#{value}]" }.join(", ")}" }
+      fire_on_log_body { body }
+
       if Handsoap.http_driver == :curb
         if !@http_client
           require 'curb'
@@ -266,10 +261,10 @@ module Handsoap
         end
         @http_client.headers = headers
         @http_client.http_post body
-        debug do
-          fire_on_log_header "HandSoap Response [#{dispatch_id}]: length: [#{@http_client.body_str.length}], HTTP-Status: [#{@http_client.response_code}], Content-Type: [#{@http_client.content_type}]"
-          fire_on_log_body Handsoap.pretty_format_envelope(@http_client.body_str)
-        end
+
+        fire_on_log_header { "HandSoap Response [#{dispatch_id}]: length: [#{@http_client.body_str.length}], HTTP-Status: [#{@http_client.response_code}], Content-Type: [#{@http_client.content_type}]" }
+        fire_on_log_body { Handsoap.pretty_format_envelope(@http_client.body_str) }
+
         soap_response = Response.new(@http_client.body_str, envelope_namespace)
       else
         if !@http_client
@@ -278,10 +273,10 @@ module Handsoap
           fire_on_http_client_init @http_client, headers
         end
         response = @http_client.post(uri, body, headers)
-        debug do
-          fire_on_log_header "HandSoap Response [#{dispatch_id}]: length: [#{response.content.length}], HTTP-Status: [#{response.status}], Content-Type: [#{response.contenttype}]"
-          fire_on_log_body Handsoap.pretty_format_envelope(response.content)
-        end
+
+        fire_on_log_header { "HandSoap Response [#{dispatch_id}]: length: [#{response.content.length}], HTTP-Status: [#{response.status}], Content-Type: [#{response.contenttype}]" }
+        fire_on_log_body { Handsoap.pretty_format_envelope(response.content) }
+
         soap_response = Response.new(response.content, envelope_namespace)
       end
       if soap_response.fault?
