@@ -36,8 +36,8 @@ module Handsoap
   SOAP_NAMESPACE = { 1 => 'http://schemas.xmlsoap.org/soap/envelope/', 2 => 'http://www.w3.org/2001/12/soap-encoding' }
 
   class Response
-    def initialize(http_body, soap_namespace)
-      @http_body = http_body
+    def initialize(http_response, soap_namespace)
+      @http_response = http_response
       @soap_namespace = soap_namespace
       @document = :lazy
       @fault = :lazy
@@ -47,7 +47,7 @@ module Handsoap
     end
     def document
       if @document == :lazy
-        doc = Nokogiri::XML(@http_body)
+        doc = Nokogiri::XML(@http_response.content)
         @document = (doc && doc.root && doc.errors.empty?) ? doc : nil
       end
       return @document
@@ -62,7 +62,12 @@ module Handsoap
       end
       return @fault
     end
+    def cookie
+      @http_response.headers['Set-Cookie']
+    end
   end
+
+  CurlResponse = Struct.new(:content, :headers)
 
   class Fault < RuntimeError
     attr_reader :code, :reason, :details
@@ -265,7 +270,9 @@ module Handsoap
         fire_on_log_header { "HandSoap Response [#{dispatch_id}]: length: [#{@http_client.body_str.length}], HTTP-Status: [#{@http_client.response_code}], Content-Type: [#{@http_client.content_type}]" }
         fire_on_log_body { Handsoap.pretty_format_envelope(@http_client.body_str) }
 
-        soap_response = Response.new(@http_client.body_str, envelope_namespace)
+        response = CurlResponse.new(@http_client.body_str, @http_client.header_str)
+
+        soap_response = Response.new(response, envelope_namespace)
       else
         if !@http_client
           require 'httpclient'
@@ -277,7 +284,7 @@ module Handsoap
         fire_on_log_header { "HandSoap Response [#{dispatch_id}]: length: [#{response.content.length}], HTTP-Status: [#{response.status}], Content-Type: [#{response.contenttype}]" }
         fire_on_log_body { Handsoap.pretty_format_envelope(response.content) }
 
-        soap_response = Response.new(response.content, envelope_namespace)
+        soap_response = Response.new(response, envelope_namespace)
       end
       if soap_response.fault?
         return self.on_fault(soap_response.fault)
