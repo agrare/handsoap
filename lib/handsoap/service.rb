@@ -97,8 +97,10 @@ module Handsoap
     @@log_header_callback = nil
     @@log_body_callback = nil
     attr_reader :http_client
+    attr_accessor :cookie
     def initialize(ep)
       @http_client = nil
+      @cookie = nil
       @create_document_callback ||= @@create_document_callback
       @log_header_callback ||= @@log_header_callback
       @log_body_callback ||= @@log_body_callback
@@ -266,6 +268,8 @@ module Handsoap
         fire_on_log_body { Handsoap.pretty_format_envelope(@http_client.body_str) }
 
         soap_response = Response.new(@http_client.body_str, envelope_namespace)
+
+        self.cookie = @http_client.headers['Set-Cookie'] if response.headers.key?('Set-Cookie')
       else
         if !@http_client
           require 'httpclient'
@@ -278,6 +282,8 @@ module Handsoap
         fire_on_log_body { Handsoap.pretty_format_envelope(response.content) }
 
         soap_response = Response.new(response.content, envelope_namespace)
+
+        self.cookie = response.headers['Set-Cookie'] if response.headers.key?('Set-Cookie')
       end
       if soap_response.fault?
         return self.on_fault(soap_response.fault)
