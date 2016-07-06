@@ -67,7 +67,21 @@ module Handsoap
     end
   end
 
-  CurlResponse = Struct.new(:content, :headers)
+  CurlResponse = Struct.new(:content, :raw_headers) do
+    def headers
+      # split the headers on newlines
+      header_array = raw_headers.split("\n")
+
+      # drop the first HTTP/1.1 200 OK element
+      header_array.shift
+
+      # strip out any leading/trailing whitespace
+      header_array.each { |h| h.strip! }.reject!(&:empty?)
+
+      # split e.g.: 'Content-Length: 100' to create a hash
+      header_array.collect { |h| h.split(": ") }.to_h
+    end
+  end
 
   class Fault < RuntimeError
     attr_reader :code, :reason, :details
