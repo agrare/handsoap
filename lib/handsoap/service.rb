@@ -47,7 +47,9 @@ module Handsoap
     end
     def document
       if @document == :lazy
-        doc = Nokogiri::XML(@http_response.content)
+        doc = Nokogiri::XML(@http_response.content) do |config|
+          config.options |= Nokogiri::XML::ParseOptions::HUGE
+        end
         @document = (doc && doc.root && doc.errors.empty?) ? doc : nil
       end
       return @document
