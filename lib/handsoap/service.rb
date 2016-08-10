@@ -227,7 +227,7 @@ module Handsoap
     # +String+ sends a SOAPAction http header.
     #
     # +nil+ sends no SOAPAction http header.
-    def invoke(action, options = { :soap_action => :auto, :http_options => nil }, &block) # :yields: Handsoap::XmlMason::Element
+    def invoke(action, options = { :soap_action => :auto, :http_options => nil, :xml_options => nil }, &block) # :yields: Handsoap::XmlMason::Element
       if action
         if options.kind_of? String
           options = { :soap_action => options }
@@ -260,7 +260,7 @@ module Handsoap
         on_before_dispatch(doc)
         request = make_http_request(self.uri, doc.to_s, headers, options[:http_options])
         response = http_driver_instance.send_http_request(request)
-        parse_http_response(response)
+        parse_http_response(response, options[:xml_options])
       end
     end
 
@@ -329,7 +329,7 @@ module Handsoap
         deferred.callback do |http_response|
           begin
             # Parse response
-            response_document = parse_http_response(http_response)
+            response_document = parse_http_response(http_response, options[:xml_options])
             # Transform response
             result = dispatcher.response_block.call(response_document)
             # Yield to userland code
@@ -444,14 +444,14 @@ module Handsoap
 
     # Start the parsing pipe-line.
     # There are various stages and hooks for each, so that you can override those in your service classes.
-    def parse_http_response(response)
+    def parse_http_response(response, xml_options)
       debug do |logger|
         logger.puts(response.inspect do |body|
           Handsoap.pretty_format_envelope(body.force_encoding('utf-8')).chomp
         end)
       end
       raw_xml_document = response.primary_part.body.force_encoding('utf-8')
-      xml_document = parse_soap_response_document(raw_xml_document)
+      xml_document = parse_soap_response_document(raw_xml_document, xml_options)
       soap_fault = parse_soap_fault(xml_document)
       # Is the response a soap-fault?
       unless soap_fault.nil?
@@ -490,9 +490,9 @@ module Handsoap
     end
 
     # String -> [XmlDocument | nil]
-    def parse_soap_response_document(http_body)
+    def parse_soap_response_document(http_body, xml_options)
       begin
-        Handsoap::XmlQueryFront.parse_string(http_body, Handsoap.xml_query_driver)
+        Handsoap::XmlQueryFront.parse_string(http_body, Handsoap.xml_query_driver, xml_options)
       rescue Handsoap::XmlQueryFront::ParseError => ex
         nil
       end

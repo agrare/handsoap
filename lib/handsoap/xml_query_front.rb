@@ -50,14 +50,16 @@ module Handsoap
     #   :rexml
     #   :nokogiri
     #   :libxml
-    def self.parse_string(xml_string, driver)
+    def self.parse_string(xml_string, driver, xml_options)
       load_driver!(driver)
       if driver == :rexml
         doc = REXML::Document.new(xml_string)
         raise ParseError.new if doc.root.nil?
         XmlQueryFront::REXMLDriver.new(doc)
       elsif driver == :nokogiri
-        doc = Nokogiri::XML(xml_string)
+        doc = Nokogiri::XML(xml_string) do |config|
+          config.options |= xml_options[:parser_options] if xml_options[:parser_options]
+        end
         raise ParseError.new unless (doc && doc.root && doc.errors.empty?)
         XmlQueryFront::NokogiriDriver.new(doc)
       elsif driver == :libxml
