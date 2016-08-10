@@ -135,10 +135,10 @@ module Handsoap
         @http_client_init_callback.call http_client
       end
     end
-    def self.on_create_document(&block)
+    def on_create_document(&block)
       @@create_document_callback = block
     end
-    def self.fire_on_create_document(doc)
+    def fire_on_create_document(doc)
       if @@create_document_callback
         @@create_document_callback.call doc
       end
@@ -240,14 +240,15 @@ module Handsoap
     def dispatch(doc, action)
       on_before_dispatch()
       headers = {
-        "Content-Type" => "#{request_content_type};charset=UTF-8"
+        "Content-Type" => "#{request_content_type}; charset=UTF-8"
       }
       headers["SOAPAction"] = action unless action.nil?
       body = doc.to_s
       debug do |logger|
         logger.puts "==============="
         logger.puts "--- Request ---"
-        logger.puts "URI: %s" % [uri]
+        logger.puts "POST %s" % [uri]
+        logger.puts "---"
         logger.puts headers.map { |key,value| key + ": " + value }.join("\n")
         logger.puts "---"
         logger.puts body
@@ -295,7 +296,7 @@ module Handsoap
           env.add "*:Body"
         end
       end
-      self.class.fire_on_create_document doc
+      fire_on_create_document doc
       if block_given?
         yield doc.find("Body")
       end
