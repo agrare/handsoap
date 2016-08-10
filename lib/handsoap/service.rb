@@ -262,8 +262,7 @@ module Handsoap
         @http_client.http_post body
         debug do |logger|
           logger.puts "--- Response ---"
-          logger.puts "HTTP Status: %s" % [@http_client.response_code]
-          logger.puts "Content-Type: %s" % [@http_client.content_type]
+          logger.puts @http_client.response.header.dump
           logger.puts "---"
           logger.puts Handsoap.pretty_format_envelope(@http_client.body_str)
         end
@@ -276,8 +275,7 @@ module Handsoap
         response = @http_client.post(uri, body, headers)
         debug do |logger|
           logger.puts "--- Response ---"
-          logger.puts "HTTP Status: %s" % [response.status]
-          logger.puts "Content-Type: %s" % [response.contenttype]
+          logger.puts response.header.dump
           logger.puts "---"
           logger.puts Handsoap.pretty_format_envelope(response.content)
         end
