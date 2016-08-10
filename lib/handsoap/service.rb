@@ -450,7 +450,7 @@ module Handsoap
       end
       # Everything seems in order.
       on_response_document(xml_document)
-      args = [xml_document, response]
+      args = [xml_document.native_element, response]
       args << raw_xml_document if Handsoap.store_raw_response?
       return SoapResponse.new(*args)
     end
