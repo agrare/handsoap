@@ -37,7 +37,8 @@ module Handsoap
 
   class Response
     def initialize(http_response, soap_namespace)
-      @http_response = http_response
+      @http_body = http_response.content
+      @http_headers = http_response.headers
       @soap_namespace = soap_namespace
       @document = :lazy
       @fault = :lazy
@@ -47,7 +48,7 @@ module Handsoap
     end
     def document
       if @document == :lazy
-        doc = Nokogiri::XML(@http_response.content) do |config|
+        doc = Nokogiri::XML(@http_body) do |config|
           config.options |= Nokogiri::XML::ParseOptions::HUGE
         end
         @document = (doc && doc.root && doc.errors.empty?) ? doc : nil
@@ -65,7 +66,7 @@ module Handsoap
       return @fault
     end
     def cookie
-      @http_response.headers['Set-Cookie']
+      @http_headers['Set-Cookie']
     end
   end
 
